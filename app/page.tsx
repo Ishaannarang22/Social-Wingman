@@ -94,6 +94,20 @@ export default function Home() {
     [session]
   );
 
+  const handleSpeakingTimeUpdate = useCallback(
+    (speakingTime: number, silenceTime: number, longestSilence: number) => {
+      session.updateSpeakingTime(speakingTime, silenceTime, longestSilence);
+    },
+    [session]
+  );
+
+  const handleFillerBreakdownUpdate = useCallback(
+    (fillerCounts: Record<string, number>) => {
+      session.updateFillerBreakdown(fillerCounts);
+    },
+    [session]
+  );
+
   return (
     <main className="min-h-screen bg-surface">
       {error && (
@@ -126,6 +140,8 @@ export default function Home() {
             onBatteryChange={handleBatteryChange}
             onSuggestion={handleSuggestion}
             onFillerUpdate={handleFillerUpdate}
+            onSpeakingTimeUpdate={handleSpeakingTimeUpdate}
+            onFillerBreakdownUpdate={handleFillerBreakdownUpdate}
           />
         )}
 

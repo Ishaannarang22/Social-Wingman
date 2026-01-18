@@ -64,7 +64,7 @@ export function GradeHero({ score, className }: GradeHeroProps) {
       )}
 
       {/* Grade circle */}
-      <div className="relative inline-flex items-center justify-center w-40 h-40 mb-4">
+      <div className="relative inline-flex items-center justify-center w-32 h-32 sm:w-40 sm:h-40 mb-3 sm:mb-4">
         {/* Glow effect */}
         <div
           className={cn(
@@ -84,7 +84,7 @@ export function GradeHero({ score, className }: GradeHeroProps) {
           <div className="w-full h-full rounded-full bg-white/80 flex items-center justify-center">
             <span
               className={cn(
-                "text-7xl font-display font-bold",
+                "text-5xl sm:text-7xl font-display font-bold",
                 "bg-gradient-to-br bg-clip-text text-transparent",
                 gradeInfo.color
               )}
@@ -96,7 +96,7 @@ export function GradeHero({ score, className }: GradeHeroProps) {
       </div>
 
       {/* Subtitle */}
-      <p className="text-xl text-gray-600 font-medium">{gradeInfo.subtitle}</p>
+      <p className="text-lg sm:text-xl text-gray-600 font-medium">{gradeInfo.subtitle}</p>
     </div>
   );
 }

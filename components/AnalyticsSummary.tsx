@@ -75,19 +75,19 @@ export function AnalyticsSummary({ analytics, onNewSession }: AnalyticsSummaryPr
   );
 
   return (
-    <div className="w-full max-w-2xl mx-auto px-6 py-12">
+    <div className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
       {/* Header */}
-      <div className="text-center mb-8">
-        <h1 className="text-4xl font-display font-bold text-gray-800 mb-2">
+      <div className="text-center mb-6 sm:mb-8">
+        <h1 className="text-3xl sm:text-4xl font-display font-bold text-gray-800 mb-2">
           Session Complete
         </h1>
       </div>
 
       {/* Grade Hero */}
-      <GradeHero score={gradeScore} className="mb-8" />
+      <GradeHero score={gradeScore} className="mb-6 sm:mb-8" />
 
       {/* Quick Stats */}
-      <QuickStats stats={quickStats} className="mb-8" />
+      <QuickStats stats={quickStats} className="mb-6 sm:mb-8" />
 
       {/* View Details Toggle */}
       <button
@@ -102,67 +102,69 @@ export function AnalyticsSummary({ analytics, onNewSession }: AnalyticsSummaryPr
 
       {/* Detailed Stats (Collapsible) */}
       {showDetails && (
-        <div className="space-y-4 mb-8 animate-fade-in">
+        <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8 animate-fade-in">
           {/* Speaking Time */}
-          <div className="glass-card p-4">
-            <h3 className="text-sm font-medium text-white/70 mb-3">Time Breakdown</h3>
-            <div className="grid grid-cols-3 gap-4 text-center">
+          <div className="glass-card p-3 sm:p-4">
+            <h3 className="text-xs sm:text-sm font-medium text-white/70 mb-2 sm:mb-3">Time Breakdown</h3>
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
               <div>
-                <div className="text-xl font-mono font-bold text-white">
+                <div className="text-base sm:text-xl font-mono font-bold text-white">
                   {formatDuration(analytics.speakingTime)}
                 </div>
-                <div className="text-xs text-white/55">Speaking</div>
+                <div className="text-[10px] sm:text-xs text-white/55">Speaking</div>
               </div>
               <div>
-                <div className="text-xl font-mono font-bold text-white">
+                <div className="text-base sm:text-xl font-mono font-bold text-white">
                   {formatDuration(analytics.silenceTime)}
                 </div>
-                <div className="text-xs text-white/55">Silence</div>
+                <div className="text-[10px] sm:text-xs text-white/55">Silence</div>
               </div>
               <div>
-                <div className="text-xl font-mono font-bold text-white">
-                  {Math.round((analytics.speakingTime / analytics.sessionDuration) * 100)}%
+                <div className="text-base sm:text-xl font-mono font-bold text-white">
+                  {analytics.sessionDuration > 0
+                    ? Math.round((analytics.speakingTime / analytics.sessionDuration) * 100)
+                    : 0}%
                 </div>
-                <div className="text-xs text-white/55">Talk Ratio</div>
+                <div className="text-[10px] sm:text-xs text-white/55">Talk Ratio</div>
               </div>
             </div>
           </div>
 
           {/* Pause Analysis */}
-          <div className="glass-card p-4">
-            <h3 className="text-sm font-medium text-white/70 mb-3">Pause Analysis</h3>
-            <div className="grid grid-cols-3 gap-4 text-center">
+          <div className="glass-card p-3 sm:p-4">
+            <h3 className="text-xs sm:text-sm font-medium text-white/70 mb-2 sm:mb-3">Pause Analysis</h3>
+            <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
               <div>
-                <div className="text-xl font-mono font-bold text-white">
+                <div className="text-base sm:text-xl font-mono font-bold text-white">
                   {formatDuration(analytics.longestSilence)}
                 </div>
-                <div className="text-xs text-white/55">Longest</div>
+                <div className="text-[10px] sm:text-xs text-white/55">Longest</div>
               </div>
               <div>
-                <div className="text-xl font-mono font-bold text-white">
+                <div className="text-base sm:text-xl font-mono font-bold text-white">
                   {formatDuration(analytics.averageSilence)}
                 </div>
-                <div className="text-xs text-white/55">Average</div>
+                <div className="text-[10px] sm:text-xs text-white/55">Average</div>
               </div>
               <div>
-                <div className="text-xl font-mono font-bold text-white">
+                <div className="text-base sm:text-xl font-mono font-bold text-white">
                   {analytics.silenceCount}
                 </div>
-                <div className="text-xs text-white/55">Total Pauses</div>
+                <div className="text-[10px] sm:text-xs text-white/55">Total Pauses</div>
               </div>
             </div>
           </div>
 
           {/* Filler Breakdown */}
           {sortedFillers.length > 0 && (
-            <div className="glass-card p-4">
-              <h3 className="text-sm font-medium text-white/70 mb-3">
+            <div className="glass-card p-3 sm:p-4">
+              <h3 className="text-xs sm:text-sm font-medium text-white/70 mb-2 sm:mb-3">
                 Filler Words ({analytics.totalFillers} total)
               </h3>
               <div className="space-y-2">
                 {sortedFillers.map(([word, count]) => (
-                  <div key={word} className="flex items-center gap-3">
-                    <span className="text-white/70 w-16 text-sm font-mono">"{word}"</span>
+                  <div key={word} className="flex items-center gap-2 sm:gap-3">
+                    <span className="text-white/70 w-12 sm:w-16 text-xs sm:text-sm font-mono">"{word}"</span>
                     <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-gradient-to-r from-yellow-500 to-amber-500"
@@ -171,7 +173,7 @@ export function AnalyticsSummary({ analytics, onNewSession }: AnalyticsSummaryPr
                         }}
                       />
                     </div>
-                    <span className="text-white/70 text-sm font-mono w-8 text-right">
+                    <span className="text-white/70 text-xs sm:text-sm font-mono w-6 sm:w-8 text-right">
                       {count}
                     </span>
                   </div>
@@ -181,28 +183,28 @@ export function AnalyticsSummary({ analytics, onNewSession }: AnalyticsSummaryPr
           )}
 
           {/* Battery Performance */}
-          <div className="glass-card p-4">
-            <h3 className="text-sm font-medium text-white/70 mb-3">Battery Performance</h3>
-            <div className="grid grid-cols-2 gap-4 text-center">
+          <div className="glass-card p-3 sm:p-4">
+            <h3 className="text-xs sm:text-sm font-medium text-white/70 mb-2 sm:mb-3">Battery Performance</h3>
+            <div className="grid grid-cols-2 gap-2 sm:gap-4 text-center">
               <div>
-                <div className="text-xl font-mono font-bold text-white">
+                <div className="text-base sm:text-xl font-mono font-bold text-white">
                   {Math.round(analytics.averageBattery)}%
                 </div>
-                <div className="text-xs text-white/55">Average</div>
+                <div className="text-[10px] sm:text-xs text-white/55">Average</div>
               </div>
               <div>
                 <div
-                  className={`text-xl font-mono font-bold ${
+                  className={`text-base sm:text-xl font-mono font-bold ${
                     analytics.minBattery < 25 ? "text-red-400" : "text-white"
                   }`}
                 >
                   {Math.round(analytics.minBattery)}%
                 </div>
-                <div className="text-xs text-white/55">Lowest</div>
+                <div className="text-[10px] sm:text-xs text-white/55">Lowest</div>
               </div>
             </div>
             {analytics.timeInCritical > 0 && (
-              <div className="mt-3 text-center text-sm text-red-400/80">
+              <div className="mt-2 sm:mt-3 text-center text-xs sm:text-sm text-red-400/80">
                 Spent {formatDuration(analytics.timeInCritical)} in critical zone
               </div>
             )}
@@ -212,7 +214,7 @@ export function AnalyticsSummary({ analytics, onNewSession }: AnalyticsSummaryPr
 
       {/* Insights */}
       {insights.length > 0 && (
-        <div className="space-y-3 mb-8">
+        <div className="space-y-2 sm:space-y-3 mb-6 sm:mb-8">
           {insights.map((insight, index) => (
             <InsightCard key={index} message={insight.message} type={insight.type} />
           ))}
@@ -220,8 +222,8 @@ export function AnalyticsSummary({ analytics, onNewSession }: AnalyticsSummaryPr
       )}
 
       {/* Practice Again Button */}
-      <button onClick={onNewSession} className="btn-primary w-full text-lg flex items-center justify-center gap-2">
-        <RotateCcw className="w-5 h-5" />
+      <button onClick={onNewSession} className="btn-primary w-full text-base sm:text-lg flex items-center justify-center gap-2">
+        <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
         Practice Again
       </button>
     </div>

@@ -61,12 +61,12 @@ export function StatusText({
 
   return (
     <div className={cn("text-center", className)}>
-      <p className={cn("text-xl font-medium", config.color)}>{config.text}</p>
+      <p className={cn("text-lg sm:text-xl font-medium", config.color)}>{config.text}</p>
       {config.subtext && !showSilence && (
-        <p className="text-sm text-white/55 mt-1">{config.subtext}</p>
+        <p className="text-xs sm:text-sm text-white/55 mt-1">{config.subtext}</p>
       )}
       {showSilence && (
-        <p className="text-sm text-yellow-400/80 mt-1">
+        <p className="text-xs sm:text-sm text-yellow-400/80 mt-1">
           Silence: {silenceDuration.toFixed(1)}s
         </p>
       )}

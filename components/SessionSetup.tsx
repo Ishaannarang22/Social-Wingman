@@ -45,10 +45,10 @@ export function SessionSetup({ onStart, isConnecting = false }: SessionSetupProp
   };
 
   return (
-    <div className="w-full max-w-3xl mx-auto px-6 py-6">
+    <div className="w-full max-w-3xl mx-auto px-4 sm:px-6 py-6">
       {/* Hero Header */}
       <div className="text-center mb-6">
-        <h1 className="text-7xl md:text-8xl font-display font-bold mb-3 tracking-tight leading-none">
+        <h1 className="text-5xl sm:text-7xl md:text-8xl font-display font-bold mb-3 tracking-tight leading-none">
           <span className="text-gray-900">Social</span>{" "}
           <span className="text-[#7a9f6a]">Cue</span>
         </h1>
@@ -59,7 +59,7 @@ export function SessionSetup({ onStart, isConnecting = false }: SessionSetupProp
 
       <div className="space-y-4">
         {/* Context Options - Moved to top */}
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
           <ContextPills
             label="Event Type"
             options={EVENT_OPTIONS}
@@ -80,7 +80,7 @@ export function SessionSetup({ onStart, isConnecting = false }: SessionSetupProp
           <h2 className="text-lg font-display font-semibold text-gray-800 mb-3">
             Choose Your Practice Partner
           </h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {DEMO_PERSONAS.map((key) => (
               <PersonaCard
                 key={key}

@@ -28,6 +28,8 @@ export interface UseSessionReturn {
   recordBatteryValue: (value: number) => void;
   recordWingmanSuggestion: () => void;
   updateFillerStats: (fillerRate: number, fillerCount: number) => void;
+  updateSpeakingTime: (speakingTime: number, silenceTime: number, longestSilence: number) => void;
+  updateFillerBreakdown: (fillerCounts: Record<string, number>) => void;
   resetSession: () => void;
 }
 
@@ -123,6 +125,16 @@ export function useSession(): UseSessionReturn {
     analyticsRef.current.updateFillerStats(fillerRate, fillerCount);
   }, []);
 
+  // Update speaking/silence times
+  const updateSpeakingTime = useCallback((speakingTime: number, silenceTime: number, longestSilence: number) => {
+    analyticsRef.current.updateSpeakingTime(speakingTime, silenceTime, longestSilence);
+  }, []);
+
+  // Update filler breakdown
+  const updateFillerBreakdown = useCallback((fillerCounts: Record<string, number>) => {
+    analyticsRef.current.updateFillerBreakdown(fillerCounts);
+  }, []);
+
   // Reset session to setup state
   const resetSession = useCallback(() => {
     if (durationIntervalRef.current) {
@@ -153,6 +165,8 @@ export function useSession(): UseSessionReturn {
     recordBatteryValue,
     recordWingmanSuggestion,
     updateFillerStats,
+    updateSpeakingTime,
+    updateFillerBreakdown,
     resetSession,
   };
 }
