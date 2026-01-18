@@ -19,6 +19,13 @@ export async function POST(request: NextRequest) {
       triggerReason = "low_battery",
     } = body;
 
+    // Debug logging
+    console.log("=== WINGMAN SUGGEST API ===");
+    console.log("recentTranscript:", recentTranscript);
+    console.log("lastPartnerUtterance:", lastPartnerUtterance);
+    console.log("eventType:", eventType);
+    console.log("userRole:", userRole);
+
     // If no context, use a generic prompt
     const hasContext = recentTranscript || lastPartnerUtterance;
 

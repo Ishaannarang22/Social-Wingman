@@ -92,11 +92,11 @@ async def entrypoint(ctx: JobContext):
         modalities=["audio", "text"],
         turn_detection=TurnDetection(
             type="server_vad",  # Use server-side VAD
-            threshold=0.6,  # Higher threshold = less sensitive to noise
-            prefix_padding_ms=500,  # More padding before speech
-            silence_duration_ms=800,  # Wait longer before considering turn complete
+            threshold=0.7,  # Higher threshold = less sensitive to noise (was 0.6)
+            prefix_padding_ms=400,  # Padding before speech starts
+            silence_duration_ms=1000,  # Wait longer before considering turn complete (was 800)
             create_response=True,  # Auto-create response when turn ends
-            interrupt_response=True,  # Required for server_vad
+            interrupt_response=False,  # Don't interrupt agent while speaking
         ),
     )
     logger.info(f"Model created: {type(model)}")
@@ -158,7 +158,7 @@ async def entrypoint(ctx: JobContext):
     logger.info(">>> Generating initial greeting...")
     try:
         await session.generate_reply(
-            instructions="Greet the user warmly and briefly. Keep it to 1-2 sentences. Don't ask a question yet, just say hello."
+            instructions="Greet the user warmly and briefly in ENGLISH ONLY. Keep it to 1-2 sentences. Don't ask a question yet, just say hello. You MUST speak in English."
         )
         logger.info(">>> Initial greeting sent!")
     except Exception as e:

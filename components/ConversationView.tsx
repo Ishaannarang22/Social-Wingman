@@ -10,15 +10,18 @@ import {
   useConnectionState,
 } from "@livekit/components-react";
 import { ConnectionState } from "livekit-client";
-import { BatteryMeter } from "./BatteryMeter";
+import { VoiceOrb } from "./VoiceOrb";
+import { StatusText, ConversationState } from "./StatusText";
 import { ListeningIndicator } from "./ListeningIndicator";
 import { SuggestionToast } from "./SuggestionToast";
-import { FlowBall, FlowBallState } from "./FlowBall";
+import { DebugInfo } from "./DebugDrawer";
+import { cn } from "@/lib/utils";
 import { useWingmanTranscription } from "@/hooks/useWingmanTranscription";
 import { useSocialBattery } from "@/hooks/useSocialBattery";
 import { useWingmanSuggestion } from "@/hooks/useWingmanSuggestion";
 import { useWhisperTTS } from "@/hooks/useWhisperTTS";
 import { useVoiceActivityDetection } from "@/hooks/useVoiceActivityDetection";
+import { useAudioCue } from "@/hooks/useAudioCue";
 import { SessionConfig } from "@/hooks/useSession";
 import { WingmanSuggestion } from "@/types/analytics";
 
@@ -29,6 +32,7 @@ interface ConversationViewProps {
   onEnd: () => void;
   onBatteryChange?: (value: number) => void;
   onSuggestion?: () => void;
+  onFillerUpdate?: (fillerRate: number, fillerCount: number) => void;
 }
 
 function ConversationContent({
@@ -36,38 +40,24 @@ function ConversationContent({
   onEnd,
   onBatteryChange,
   onSuggestion,
+  onFillerUpdate,
 }: Omit<ConversationViewProps, "token" | "serverUrl">) {
   const connectionState = useConnectionState();
   const { state: agentState, audioTrack } = useVoiceAssistant();
   const room = useRoomContext();
 
   const [showSuggestion, setShowSuggestion] = useState<WingmanSuggestion | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
+  const [tapCount, setTapCount] = useState(0);
+  const tapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const checkIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Debug logging
-  useEffect(() => {
-    console.log("=== ConversationContent State ===");
-    console.log("  connectionState:", connectionState);
-    console.log("  agentState:", agentState);
-    console.log("  audioTrack:", audioTrack ? "present" : "null");
-    console.log("  room participants:", room?.remoteParticipants?.size ?? 0);
-
-    // Log remote participants
-    if (room?.remoteParticipants) {
-      room.remoteParticipants.forEach((p, identity) => {
-        console.log(`  Remote participant: ${identity}, tracks:`,
-          Array.from(p.trackPublications.values()).map(t => t.kind)
-        );
-      });
-    }
-  }, [connectionState, agentState, audioTrack, room]);
 
   // Initialize hooks
   const transcription = useWingmanTranscription();
   const vad = useVoiceActivityDetection({
-    silenceThreshold: 0.15,  // Below 15% = silence
-    speechThreshold: 0.16,   // Above 16% = speaking
-    silenceDelay: 300,       // 300ms of quiet before marking as silent
+    silenceThreshold: 0.15,
+    speechThreshold: 0.16,
+    silenceDelay: 300,
   });
   const battery = useSocialBattery({
     onCritical: (value) => {
@@ -83,14 +73,29 @@ function ConversationContent({
     },
   });
   const whisperTTS = useWhisperTTS();
+  const audioCue = useAudioCue();
+
+  const [coherenceIssue, setCoherenceIssue] = useState<string | null>(null);
+
+  // Triple-tap to open debug drawer
+  const handleBatteryTap = () => {
+    setTapCount((prev) => prev + 1);
+
+    if (tapTimeoutRef.current) {
+      clearTimeout(tapTimeoutRef.current);
+    }
+
+    tapTimeoutRef.current = setTimeout(() => {
+      if (tapCount >= 2) {
+        setShowDebug(true);
+      }
+      setTapCount(0);
+    }, 300);
+  };
 
   // Start VAD and transcription when connected
   useEffect(() => {
-    console.log("=== Connection State Effect ===");
-    console.log("  connectionState:", connectionState);
-
     if (connectionState === ConnectionState.Connected) {
-      console.log("  → Starting VAD and transcription");
       vad.startListening();
       transcription.startListening();
     }
@@ -101,40 +106,52 @@ function ConversationContent({
     };
   }, [connectionState]);
 
-  // Battery logic using VAD (voice activity detection)
-  // - Recharge when user speaks
-  // - Drain when user is silent AND bot is not speaking
-  // - Pause when bot is speaking (user is listening, not penalized)
+  // Battery logic using VAD
   useEffect(() => {
     if (!vad.isListening) return;
 
     if (vad.isSpeaking) {
-      console.log("Battery: User speaking → recharge");
       battery.recordSpeech();
     } else if (agentState === "speaking") {
-      console.log("Battery: Bot speaking → pause (user listening)");
       battery.stopDraining();
     } else {
-      console.log("Battery: User silent, bot not speaking → drain");
       battery.startDraining();
     }
   }, [vad.isListening, vad.isSpeaking, agentState]);
 
-  // Apply filler penalty
+  // Apply filler penalty and play audio cues
+  const lastFillerThresholdRef = useRef<number>(0);
+  const wasSpeakingRef = useRef<boolean>(false);
+
+  // Reset filler threshold when user stops speaking
+  useEffect(() => {
+    if (wasSpeakingRef.current && !vad.isSpeaking) {
+      // User just stopped speaking - reset threshold for next speaking segment
+      lastFillerThresholdRef.current = 0;
+    }
+    wasSpeakingRef.current = vad.isSpeaking;
+  }, [vad.isSpeaking]);
+
   useEffect(() => {
     if (transcription.fillerRate > 0) {
       battery.applyFillerPenalty(transcription.fillerRate);
-    }
-  }, [transcription.fillerRate]);
 
-  // Coherence check - evaluate speech clarity periodically
+      const currentThreshold = Math.floor(transcription.fillerRate / 5) * 5;
+
+      if (vad.isSpeaking && currentThreshold > lastFillerThresholdRef.current && currentThreshold >= 5) {
+        lastFillerThresholdRef.current = currentThreshold;
+        // Play warning ping for filler words
+        audioCue.playFillerWarning();
+      }
+    }
+  }, [transcription.fillerRate, vad.isSpeaking]);
+
+  // Coherence check
   const lastCoherenceCheckRef = useRef<number>(0);
-  const [coherenceIssue, setCoherenceIssue] = useState<string | null>(null);
 
   useEffect(() => {
     const checkCoherence = async () => {
       const now = Date.now();
-      // Only check every 5 seconds
       if (now - lastCoherenceCheckRef.current < 5000) return;
 
       const transcript = transcription.recentTranscript;
@@ -151,14 +168,11 @@ function ConversationContent({
 
         if (response.ok) {
           const { score, issue } = await response.json();
-          console.log("Coherence score:", score, issue);
 
           if (score < 0.5) {
-            // Incoherent speech - apply penalty
             setCoherenceIssue(issue || "Speech unclear");
-            battery.applyFillerPenalty(15); // Heavy penalty for incoherence
+            battery.applyFillerPenalty(15);
           } else if (score < 0.7) {
-            // Slightly unclear
             setCoherenceIssue(issue || "Could be clearer");
             battery.applyFillerPenalty(8);
           } else {
@@ -170,7 +184,6 @@ function ConversationContent({
       }
     };
 
-    // Check when transcript updates
     if (transcription.recentTranscript) {
       checkCoherence();
     }
@@ -181,7 +194,12 @@ function ConversationContent({
     onBatteryChange?.(battery.batteryValue);
   }, [battery.batteryValue, onBatteryChange]);
 
-  // Refs to hold current values for the interval (avoids stale closure)
+  // Report filler updates
+  useEffect(() => {
+    onFillerUpdate?.(transcription.fillerRate, transcription.fillerCount);
+  }, [transcription.fillerRate, transcription.fillerCount, onFillerUpdate]);
+
+  // Refs for wingman check interval
   const wingmanStateRef = useRef({
     batteryValue: battery.batteryValue,
     silenceDuration: vad.silenceDuration,
@@ -190,7 +208,6 @@ function ConversationContent({
     isInGracePeriod: battery.isInGracePeriod,
   });
 
-  // Keep refs updated
   useEffect(() => {
     wingmanStateRef.current = {
       batteryValue: battery.batteryValue,
@@ -201,16 +218,12 @@ function ConversationContent({
     };
   }, [battery.batteryValue, vad.silenceDuration, vad.isSpeaking, agentState, battery.isInGracePeriod]);
 
-  // Check for wingman triggers periodically
-  // Wingman intervenes when: battery < 50% AND silence > 2s, OR silence > 5s
+  // Check for wingman triggers
   useEffect(() => {
     if (connectionState !== ConnectionState.Connected) return;
 
-    console.log("Setting up wingman check interval");
-
     checkIntervalRef.current = setInterval(() => {
       const state = wingmanStateRef.current;
-      // Always check - let trigger engine handle conditions
       wingman.checkAndTrigger(
         state.batteryValue,
         state.silenceDuration,
@@ -231,15 +244,8 @@ function ConversationContent({
   // Play TTS when suggestion is shown
   useEffect(() => {
     if (showSuggestion) {
-      console.log("🔊 Suggestion received:", showSuggestion.text);
-      console.log("🔊 TTS enabled:", whisperTTS.isEnabled);
       if (whisperTTS.isEnabled) {
-        console.log("🔊 Playing TTS...");
-        whisperTTS.speak(showSuggestion.text).then(() => {
-          console.log("🔊 TTS finished");
-        }).catch((err) => {
-          console.error("🔊 TTS error:", err);
-        });
+        whisperTTS.speak(showSuggestion.text).catch(console.error);
       }
     }
   }, [showSuggestion]);
@@ -248,120 +254,253 @@ function ConversationContent({
     setShowSuggestion(null);
   };
 
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  // Determine conversation state for StatusText
+  const getConversationState = (): ConversationState => {
+    if (connectionState !== ConnectionState.Connected) {
+      return "connecting";
+    }
+    if (vad.isSpeaking) {
+      return "user_speaking";
+    }
+    if (agentState === "speaking") {
+      return "partner_speaking";
+    }
+    if (agentState === "thinking") {
+      return "thinking";
+    }
+    if (agentState === "listening") {
+      return "listening";
+    }
+    return "waiting";
+  };
+
+  // Debug info for drawer
+  const debugInfo: DebugInfo = {
+    batteryValue: battery.batteryValue,
+    isDraining: battery.batteryState.isDraining,
+    isInGracePeriod: battery.isInGracePeriod,
+    vadSpeaking: vad.isSpeaking,
+    vadLevel: vad.audioLevel,
+    vadListening: vad.isListening,
+    silenceDuration: vad.silenceDuration,
+    connectionState,
+    agentState,
+    wingmanCooldown: wingman.isInCooldown,
+    cooldownRemaining: wingman.cooldownRemaining,
+    coherenceIssue,
+    recentTranscript: transcription.recentTranscript,
+    fillerRate: transcription.fillerRate,
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-surface">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-        <div className="flex items-center gap-4">
-          <BatteryMeter value={battery.batteryValue} showLabel size="lg" />
+      <header className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+        <div className="flex items-center gap-3">
           <ListeningIndicator isListening={transcription.isListening} />
+          <span className="text-sm text-white/70">
+            {transcription.isListening ? "AI Listening" : "Connecting..."}
+          </span>
         </div>
-        <button
-          onClick={onEnd}
-          className="px-4 py-2 text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
-        >
-          End Session
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowDebug(!showDebug)}
+            className={cn(
+              "px-3 py-2 text-sm font-mono rounded-lg transition-colors flex items-center gap-2",
+              showDebug
+                ? "text-accent-primary bg-accent-primary/10"
+                : "text-white/70 hover:text-white hover:bg-white/5"
+            )}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="4 17 10 11 4 5" />
+              <line x1="12" y1="19" x2="20" y2="19" />
+            </svg>
+            Debug
+          </button>
+          <button
+            onClick={onEnd}
+            className="px-4 py-2 text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+          >
+            End Session
+          </button>
+        </div>
       </header>
 
-      {/* Main content */}
+      {/* Main content - Battery Hero */}
       <main className="flex-1 flex flex-col items-center justify-center p-8">
-        {/* Flow Ball - The Perpetual Motion Machine */}
-        <div className="w-full max-w-md flex items-center justify-center mb-8">
-          <FlowBall
-            state={
-              vad.isSpeaking
-                ? "rolling"      // User is speaking - roll forward
-                : agentState === "speaking"
-                ? "receiving"    // Bot is speaking - glow/hover
-                : "idle"         // Both silent - gentle float (will coast from rolling)
-            }
+        {/* Voice Orb - tap 3 times for debug */}
+        <div
+          onClick={handleBatteryTap}
+          className="cursor-pointer mb-8"
+        >
+          <VoiceOrb
+            audioLevel={vad.audioLevel}
+            batteryValue={battery.batteryValue}
+            isUserSpeaking={vad.isSpeaking}
+            isAgentSpeaking={agentState === "speaking"}
+            size={360}
           />
         </div>
 
-        {/* Agent state indicator */}
-        <div className="text-center mb-8">
-          <p className="text-lg font-medium text-white mb-1">
-            {agentState === "speaking"
-              ? "Partner is speaking..."
-              : agentState === "listening"
-              ? "Listening..."
-              : agentState === "thinking"
-              ? "Thinking..."
-              : connectionState === ConnectionState.Connected
-              ? "Connected - Waiting for agent..."
-              : `Connecting... (${connectionState})`}
-          </p>
-          <p className="text-sm text-gray-500">
-            {transcription.isSpeaking && "You're speaking"}
-            {!transcription.isSpeaking &&
-              transcription.silenceDuration > 1.5 &&
-              `Silence: ${transcription.silenceDuration.toFixed(1)}s`}
-          </p>
-          {/* Debug panel */}
-          <div className="mt-4 p-3 bg-gray-800 rounded-lg text-xs font-mono">
-            <div className="text-yellow-400 mb-1">DEBUG:</div>
-            <div>Battery: {battery.batteryValue} | Draining: {battery.batteryState.isDraining ? "YES" : "NO"}</div>
-            <div>Grace Period: {battery.isInGracePeriod ? "YES" : "NO"}</div>
-            <div>VAD Speaking: {vad.isSpeaking ? "YES" : "NO"} | Level: {(vad.audioLevel * 100).toFixed(1)}%</div>
-            <div>VAD Listening: {vad.isListening ? "YES" : "NO"}</div>
-            <div>Silence: {vad.silenceDuration.toFixed(1)}s</div>
-            <div>Connection: {connectionState} | Agent: {agentState}</div>
-            <div className="text-purple-400">
-              Wingman: {wingman.isInCooldown ? `Cooldown ${wingman.cooldownRemaining}s` : "Ready"} |
-              Triggers at: &lt;50% + 2s silence OR 5s silence
-            </div>
-            {coherenceIssue && (
-              <div className="text-red-400 mt-1">Coherence: {coherenceIssue}</div>
-            )}
-            <div className="text-cyan-400 mt-1 truncate">
-              Transcript: {transcription.recentTranscript || "(empty)"}
-            </div>
-            {/* Audio level bar */}
-            <div className="mt-2 h-2 bg-gray-700 rounded overflow-hidden">
-              <div
-                className={`h-full transition-all ${vad.isSpeaking ? 'bg-green-500' : 'bg-red-500'}`}
-                style={{ width: `${Math.min(vad.audioLevel * 500, 100)}%` }}
-              />
-            </div>
-          </div>
-        </div>
+        {/* Status Text */}
+        <StatusText
+          state={getConversationState()}
+          silenceDuration={vad.silenceDuration}
+          className="mb-8"
+        />
 
-        {/* Stats bar */}
-        <div className="flex items-center gap-6 text-sm text-gray-400">
-          <div>
-            Filler rate:{" "}
-            <span
-              className={
-                transcription.fillerRate > 10
-                  ? "text-red-400"
-                  : transcription.fillerRate > 6
-                  ? "text-yellow-400"
-                  : "text-green-400"
-              }
-            >
-              {transcription.fillerRate.toFixed(1)}/min
-            </span>
+        {/* Filler rate indicator */}
+        {transcription.fillerRate > 6 && (
+          <div
+            className={`text-sm px-4 py-2 rounded-full ${
+              transcription.fillerRate > 10
+                ? "bg-red-500/20 text-red-400"
+                : "bg-yellow-500/20 text-yellow-400"
+            }`}
+          >
+            Filler rate: {transcription.fillerRate.toFixed(1)}/min
+            {transcription.fillerRate > 10 && " - Try pausing instead!"}
           </div>
-          {wingman.isInCooldown && (
-            <div className="text-purple-400">
-              Wingman cooldown: {wingman.cooldownRemaining}s
-            </div>
-          )}
-        </div>
+        )}
+
+        {/* Wingman cooldown indicator */}
+        {wingman.isInCooldown && (
+          <div className="mt-4 text-sm text-accent-primary/70">
+            Wingman ready in {wingman.cooldownRemaining}s
+          </div>
+        )}
       </main>
 
       {/* Audio renderer */}
       <RoomAudioRenderer />
 
+      {/* Inline Debug Panel */}
+      {showDebug && (
+        <div className="border-t border-white/10 bg-surface-elevated">
+          <div className="px-4 py-3 max-h-[200px] overflow-y-auto">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 font-mono text-xs">
+              {/* Battery */}
+              <div className="glass-card p-3">
+                <h3 className="text-accent-primary font-semibold mb-2 text-[10px] uppercase tracking-wider">Battery</h3>
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-white/70">Value:</span>
+                    <span className="text-white">{debugInfo.batteryValue}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/70">Draining:</span>
+                    <span className={debugInfo.isDraining ? "text-red-400" : "text-green-400"}>
+                      {debugInfo.isDraining ? "YES" : "NO"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/70">Grace:</span>
+                    <span className={debugInfo.isInGracePeriod ? "text-yellow-400" : "text-white/70"}>
+                      {debugInfo.isInGracePeriod ? "YES" : "NO"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Voice Activity */}
+              <div className="glass-card p-3">
+                <h3 className="text-accent-primary font-semibold mb-2 text-[10px] uppercase tracking-wider">Voice</h3>
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-white/70">Speaking:</span>
+                    <span className={debugInfo.vadSpeaking ? "text-green-400" : "text-white/70"}>
+                      {debugInfo.vadSpeaking ? "YES" : "NO"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/70">Silence:</span>
+                    <span className="text-white">{debugInfo.silenceDuration.toFixed(1)}s</span>
+                  </div>
+                  {/* Audio level bar */}
+                  <div className="h-2 bg-gray-700 rounded overflow-hidden mt-1">
+                    <div
+                      className={cn(
+                        "h-full transition-all",
+                        debugInfo.vadSpeaking ? "bg-green-500" : "bg-red-500"
+                      )}
+                      style={{ width: `${Math.min(debugInfo.vadLevel * 500, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Connection */}
+              <div className="glass-card p-3">
+                <h3 className="text-accent-primary font-semibold mb-2 text-[10px] uppercase tracking-wider">Connection</h3>
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-white/70">State:</span>
+                    <span className="text-white text-[10px]">{debugInfo.connectionState}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/70">Agent:</span>
+                    <span className="text-white">{debugInfo.agentState}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Wingman */}
+              <div className="glass-card p-3">
+                <h3 className="text-accent-primary font-semibold mb-2 text-[10px] uppercase tracking-wider">Wingman</h3>
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-white/70">Status:</span>
+                    <span className={debugInfo.wingmanCooldown ? "text-yellow-400" : "text-green-400"}>
+                      {debugInfo.wingmanCooldown ? `CD ${debugInfo.cooldownRemaining}s` : "Ready"}
+                    </span>
+                  </div>
+                  {coherenceIssue && (
+                    <div className="text-red-400 text-[10px] truncate" title={coherenceIssue}>
+                      {coherenceIssue}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Transcript & Stats */}
+              <div className="glass-card p-3">
+                <h3 className="text-accent-primary font-semibold mb-2 text-[10px] uppercase tracking-wider">Stats</h3>
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-white/70">Fillers:</span>
+                    <span className={cn(
+                      debugInfo.fillerRate > 10
+                        ? "text-red-400"
+                        : debugInfo.fillerRate > 6
+                        ? "text-yellow-400"
+                        : "text-green-400"
+                    )}>
+                      {debugInfo.fillerRate.toFixed(1)}/m
+                    </span>
+                  </div>
+                  <div className="text-cyan-400 text-[10px] truncate" title={debugInfo.recentTranscript}>
+                    {debugInfo.recentTranscript ? `"${debugInfo.recentTranscript.slice(0, 30)}..."` : "(no transcript)"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Control bar */}
-      <div className="p-4 border-t border-gray-800">
+      <div className="p-4 border-t border-white/10">
         <VoiceAssistantControlBar />
       </div>
 
@@ -384,6 +523,7 @@ export function ConversationView({
   onEnd,
   onBatteryChange,
   onSuggestion,
+  onFillerUpdate,
 }: ConversationViewProps) {
   return (
     <LiveKitRoom
@@ -399,6 +539,7 @@ export function ConversationView({
         onEnd={onEnd}
         onBatteryChange={onBatteryChange}
         onSuggestion={onSuggestion}
+        onFillerUpdate={onFillerUpdate}
       />
     </LiveKitRoom>
   );

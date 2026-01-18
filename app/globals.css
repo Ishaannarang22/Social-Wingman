@@ -2,15 +2,200 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+/* Google Fonts are loaded via layout.tsx */
+
+@layer base {
+  :root {
+    --radius: 0.75rem;
+
+    /* Pastel Matcha Color Palette */
+    /* Battery colors - pastel versions */
+    --battery-critical: #e8a5a5;  /* pastel rose */
+    --battery-low: #e8c9a5;       /* pastel peach */
+    --battery-medium: #e8dda5;    /* pastel cream */
+    --battery-good: #b8d4a8;      /* matcha green pastel */
+    --battery-full: #9fc490;      /* deeper matcha */
+
+    /* Accent colors - matcha theme */
+    --accent-primary: #b8d4a8;    /* matcha green */
+    --accent-secondary: #a5c4d4;  /* pastel sage blue */
+    --accent-purple: #c9b8d4;     /* pastel lavender */
+
+    /* Pure black theme */
+    --background: 0 0% 0%;        /* pure black */
+    --foreground: 80 20% 95%;     /* warm white */
+    --card: 100 6% 8%;
+    --card-foreground: 80 20% 95%;
+    --popover: 100 6% 8%;
+    --popover-foreground: 80 20% 95%;
+    --primary: 100 30% 75%;       /* matcha green */
+    --primary-foreground: 100 8% 10%;
+    --secondary: 100 5% 12%;
+    --secondary-foreground: 80 20% 95%;
+    --muted: 100 5% 12%;
+    --muted-foreground: 80 10% 72%;
+    --accent: 100 5% 15%;
+    --accent-foreground: 80 20% 95%;
+    --destructive: 0 50% 75%;     /* pastel red */
+    --destructive-foreground: 0 0% 98%;
+    --border: 100 5% 18%;
+    --input: 100 5% 18%;
+    --ring: 100 30% 75%;
+    --chart-1: 100 30% 70%;
+    --chart-2: 180 25% 65%;
+    --chart-3: 40 35% 70%;
+    --chart-4: 270 25% 75%;
+    --chart-5: 0 30% 75%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-surface text-white font-sans antialiased;
+  }
+
+  h1, h2, h3 {
+    @apply font-display;
+  }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+@layer components {
+  /* Glassmorphic card */
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-xl;
+  }
+
+  /* Glassmorphic input - light background version */
+  .glass-input {
+    @apply w-full px-4 py-3 bg-white/60 border border-gray-200 rounded-xl text-gray-800
+           placeholder-gray-400 focus:outline-none focus:border-accent-primary/50
+           focus:ring-2 focus:ring-accent-primary/20 transition-all duration-200;
+  }
+
+  /* Glassmorphic input - dark background version */
+  .glass-input-dark {
+    @apply w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white
+           placeholder-white/50 focus:outline-none focus:border-accent-primary/50
+           focus:ring-2 focus:ring-accent-primary/20 transition-all duration-200;
+  }
+
+  /* Primary button with gradient */
+  .btn-primary {
+    @apply relative py-4 px-8 bg-gradient-to-r from-accent-primary to-[#9fc490]
+           text-[#2d4a25] font-bold rounded-xl overflow-hidden
+           hover:shadow-lg hover:shadow-accent-primary/25
+           disabled:opacity-50 disabled:cursor-not-allowed
+           transition-all duration-200;
+  }
+
+  .btn-primary::before {
+    content: '';
+    @apply absolute inset-0 bg-gradient-to-r from-white/0 via-white/10 to-white/0
+           translate-x-[-100%] transition-transform duration-500;
+  }
+
+  .btn-primary:hover::before {
+    @apply translate-x-[100%];
+  }
+
+  /* Persona card hover states */
+  .persona-card {
+    @apply glass-card p-6 cursor-pointer transition-all duration-300
+           hover:scale-105 hover:shadow-lg hover:shadow-accent-primary/10
+           hover:border-accent-primary/30;
+  }
+
+  .persona-card.selected {
+    @apply border-accent-primary bg-accent-primary/10 shadow-lg shadow-accent-primary/20;
+  }
+
+  /* Context pill toggle - light background version */
+  .context-pill {
+    @apply px-4 py-2 rounded-full text-sm font-medium transition-all duration-200
+           bg-white/60 border border-gray-200 text-gray-600
+           hover:bg-white/80 hover:text-gray-800;
+  }
+
+  .context-pill.active {
+    @apply bg-accent-primary/20 border-accent-primary/50 text-[#5a7f4a] font-semibold;
+  }
+
+  /* Context pill toggle - dark background version */
+  .context-pill-dark {
+    @apply px-4 py-2 rounded-full text-sm font-medium transition-all duration-200
+           bg-white/5 border border-white/10 text-white/70
+           hover:bg-white/10 hover:text-white;
+  }
+
+  .context-pill-dark.active {
+    @apply bg-accent-primary/20 border-accent-primary/50 text-accent-primary;
+  }
+
+  /* Grade badge with gradient text */
+  .grade-text {
+    @apply bg-gradient-to-br from-accent-primary via-accent-secondary to-accent-primary
+           bg-clip-text text-transparent;
+  }
+
+  /* Battery glow effect */
+  .battery-glow {
+    filter: drop-shadow(0 0 20px var(--glow-color, var(--battery-good)));
+  }
+
+  .battery-glow-critical {
+    --glow-color: var(--battery-critical);
+    animation: glowPulse 1s ease-in-out infinite;
+  }
+
+  /* Quick stat card */
+  .stat-card {
+    @apply glass-card p-4 text-center;
+  }
+
+  /* Insight card */
+  .insight-card {
+    @apply glass-card p-4 flex items-start gap-3 border-l-4 border-accent-primary;
+  }
+}
+
+@layer utilities {
+  /* High contrast text utilities */
+  .text-secondary {
+    @apply text-white/70;
+  }
+
+  .text-tertiary {
+    @apply text-white/55;
+  }
+
+  /* Gradient text utility */
+  .text-gradient {
+    @apply bg-gradient-to-r from-accent-primary to-accent-secondary bg-clip-text text-transparent;
+  }
+
+  /* Shimmer effect for loading states */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.1) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  @keyframes glowPulse {
+    0%, 100% { opacity: 0.6; filter: blur(8px); }
+    50% { opacity: 1; filter: blur(12px); }
+  }
 }
 
 /* LiveKit component overrides */
@@ -42,6 +227,11 @@ body {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* Radial battery meter arc animation */
+.battery-arc {
+  transition: stroke-dashoffset 0.5s ease-out, stroke 0.3s ease-out;
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
@@ -58,4 +248,10 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #444;
+}
+
+/* Auto-shrink progress bar for toast */
+@keyframes shrinkWidth {
+  from { width: 100%; }
+  to { width: 0%; }
 }

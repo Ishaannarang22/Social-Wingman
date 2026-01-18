@@ -22,6 +22,7 @@ export interface UseWingmanTranscriptionReturn extends WingmanTranscriptionState
   stopListening: () => void;
   getTranscriptBuffer: () => RollingTranscriptBuffer;
   addPartnerSegment: (text: string, startTime: number, endTime: number) => void;
+  resetFillerCounts: () => void;
 }
 
 export function useWingmanTranscription(): UseWingmanTranscriptionReturn {
@@ -233,6 +234,15 @@ export function useWingmanTranscription(): UseWingmanTranscriptionReturn {
     []
   );
 
+  const resetFillerCounts = useCallback(() => {
+    bufferRef.current.resetFillerCounts();
+    setState((prev) => ({
+      ...prev,
+      fillerRate: 0,
+      fillerCount: 0,
+    }));
+  }, []);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -246,5 +256,6 @@ export function useWingmanTranscription(): UseWingmanTranscriptionReturn {
     stopListening,
     getTranscriptBuffer,
     addPartnerSegment,
+    resetFillerCounts,
   };
 }

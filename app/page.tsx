@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Onboarding } from "@/components/Onboarding";
+import { SessionSetup } from "@/components/SessionSetup";
 import { ConversationView } from "@/components/ConversationView";
 import { AnalyticsSummary } from "@/components/AnalyticsSummary";
 import { useSession, SessionConfig } from "@/hooks/useSession";
@@ -87,8 +87,15 @@ export default function Home() {
     session.recordWingmanSuggestion();
   }, [session]);
 
+  const handleFillerUpdate = useCallback(
+    (fillerRate: number, fillerCount: number) => {
+      session.updateFillerStats(fillerRate, fillerCount);
+    },
+    [session]
+  );
+
   return (
-    <main className="min-h-screen bg-gray-900">
+    <main className="min-h-screen bg-surface">
       {error && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-500/20 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg z-50">
           {error}
@@ -96,7 +103,10 @@ export default function Home() {
       )}
 
       {(session.sessionState === "setup" || session.sessionState === "connecting") && !session.sessionConfig && (
-        <div className="min-h-screen flex items-center justify-center">
+        <div
+          className="min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: "url('/basebg.png')" }}
+        >
           <SessionSetup
             onStart={handleStartSession}
             isConnecting={isConnecting}
@@ -115,6 +125,7 @@ export default function Home() {
             onEnd={handleEndSession}
             onBatteryChange={handleBatteryChange}
             onSuggestion={handleSuggestion}
+            onFillerUpdate={handleFillerUpdate}
           />
         )}
 

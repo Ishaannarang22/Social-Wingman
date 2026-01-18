@@ -27,6 +27,7 @@ export interface UseSessionReturn {
   recordPartnerSegment: (segment: Parameters<SessionAnalyticsCollector["recordPartnerSegment"]>[0]) => void;
   recordBatteryValue: (value: number) => void;
   recordWingmanSuggestion: () => void;
+  updateFillerStats: (fillerRate: number, fillerCount: number) => void;
   resetSession: () => void;
 }
 
@@ -117,6 +118,11 @@ export function useSession(): UseSessionReturn {
     analyticsRef.current.recordWingmanSuggestion();
   }, []);
 
+  // Update filler stats
+  const updateFillerStats = useCallback((fillerRate: number, fillerCount: number) => {
+    analyticsRef.current.updateFillerStats(fillerRate, fillerCount);
+  }, []);
+
   // Reset session to setup state
   const resetSession = useCallback(() => {
     if (durationIntervalRef.current) {
@@ -146,6 +152,7 @@ export function useSession(): UseSessionReturn {
     recordPartnerSegment,
     recordBatteryValue,
     recordWingmanSuggestion,
+    updateFillerStats,
     resetSession,
   };
 }

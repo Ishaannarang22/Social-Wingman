@@ -67,6 +67,14 @@ export function useWingmanSuggestion(
         const lastPartnerUtterance = transcriptBuffer.getLastPartnerUtterance();
         const recentTranscript = transcriptBuffer.getTranscriptText();
 
+        // Debug: Log what transcript is being sent
+        console.log("=== WINGMAN TRANSCRIPT BEING SENT ===");
+        console.log("recentTranscript:", recentTranscript);
+        console.log("lastPartnerUtterance:", lastPartnerUtterance?.text || "(none)");
+        console.log("eventType:", eventType);
+        console.log("userRole:", userRole);
+        console.log("=====================================");
+
         const response = await fetch("/api/wingman/suggest", {
           method: "POST",
           headers: {
