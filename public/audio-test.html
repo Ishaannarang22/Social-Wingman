@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio Test</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            background: #1a1a2e;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        button {
+            padding: 20px 40px;
+            font-size: 20px;
+            cursor: pointer;
+            background: #4ade80;
+            border: none;
+            border-radius: 10px;
+            color: black;
+            font-weight: bold;
+            margin: 10px;
+        }
+        button:hover {
+            background: #22c55e;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 20px;
+            background: #333;
+            border-radius: 10px;
+            min-width: 300px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Audio Test Page</h1>
+    <p>Click the button below to play test tones</p>
+
+    <button onclick="playTest()">Play Test Tones</button>
+
+    <div id="status">Status: Ready</div>
+
+    <script>
+        function playTest() {
+            const status = document.getElementById('status');
+            status.textContent = 'Status: Playing tone 1 (440 Hz)...';
+            status.style.background = '#fbbf24';
+
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+                // Tone 1
+                playTone(audioContext, 440, 0, 0.3);
+
+                // Tone 2
+                setTimeout(() => {
+                    status.textContent = 'Status: Playing tone 2 (554 Hz)...';
+                    playTone(audioContext, 554, 0, 0.3);
+                }, 300);
+
+                // Tone 3
+                setTimeout(() => {
+                    status.textContent = 'Status: Playing tone 3 (659 Hz)...';
+                    playTone(audioContext, 659, 0, 0.5);
+                }, 600);
+
+                // Done
+                setTimeout(() => {
+                    status.textContent = 'Status: Done! Did you hear 3 ascending tones?';
+                    status.style.background = '#4ade80';
+                }, 1200);
+
+            } catch (e) {
+                status.textContent = 'Error: ' + e.message;
+                status.style.background = '#ef4444';
+                console.error('Audio error:', e);
+            }
+        }
+
+        function playTone(audioContext, frequency, startTime, duration) {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.frequency.value = frequency;
+            oscillator.type = 'sine';
+
+            const now = audioContext.currentTime + startTime;
+            gainNode.gain.setValueAtTime(0.5, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+            oscillator.start(now);
+            oscillator.stop(now + duration);
+        }
+    </script>
+</body>
+</html>
