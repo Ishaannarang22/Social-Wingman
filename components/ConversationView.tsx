@@ -4,7 +4,6 @@ import { useEffect, useCallback, useRef, useState } from "react";
 import {
   LiveKitRoom,
   useVoiceAssistant,
-  BarVisualizer,
   RoomAudioRenderer,
   VoiceAssistantControlBar,
   useRoomContext,
@@ -14,6 +13,7 @@ import { ConnectionState } from "livekit-client";
 import { BatteryMeter } from "./BatteryMeter";
 import { ListeningIndicator } from "./ListeningIndicator";
 import { SuggestionToast } from "./SuggestionToast";
+import { FlowBall, FlowBallState } from "./FlowBall";
 import { useWingmanTranscription } from "@/hooks/useWingmanTranscription";
 import { useSocialBattery } from "@/hooks/useSocialBattery";
 import { useWingmanSuggestion } from "@/hooks/useWingmanSuggestion";
@@ -272,26 +272,17 @@ function ConversationContent({
 
       {/* Main content */}
       <main className="flex-1 flex flex-col items-center justify-center p-8">
-        {/* Agent visualizer */}
-        <div className="w-full max-w-md aspect-square flex items-center justify-center mb-8">
-          {audioTrack ? (
-            <BarVisualizer
-              state={agentState}
-              barCount={5}
-              trackRef={audioTrack}
-              className="w-full h-48"
-            />
-          ) : (
-            <div className="w-48 h-48 rounded-full bg-gray-800/50 flex items-center justify-center">
-              <div
-                className={`w-32 h-32 rounded-full ${
-                  connectionState === ConnectionState.Connected
-                    ? "bg-blue-500/30 animate-pulse"
-                    : "bg-gray-700"
-                }`}
-              />
-            </div>
-          )}
+        {/* Flow Ball - The Perpetual Motion Machine */}
+        <div className="w-full max-w-md flex items-center justify-center mb-8">
+          <FlowBall
+            state={
+              vad.isSpeaking
+                ? "rolling"      // User is speaking - roll forward
+                : agentState === "speaking"
+                ? "receiving"    // Bot is speaking - glow/hover
+                : "idle"         // Both silent - gentle float (will coast from rolling)
+            }
+          />
         </div>
 
         {/* Agent state indicator */}

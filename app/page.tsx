@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { SessionSetup } from "@/components/SessionSetup";
+import { Onboarding } from "@/components/Onboarding";
 import { ConversationView } from "@/components/ConversationView";
 import { AnalyticsSummary } from "@/components/AnalyticsSummary";
 import { useSession, SessionConfig } from "@/hooks/useSession";
