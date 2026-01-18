@@ -116,12 +116,16 @@ export function useWingmanSuggestion(
       );
 
       if (triggerEvent) {
+        console.log("📢 Wingman trigger event received:", triggerEvent);
+
         // Start cooldown tracking
         updateCooldownState();
         cooldownIntervalRef.current = setInterval(updateCooldownState, 1000);
 
         // Generate suggestion
+        console.log("📢 Generating suggestion...");
         const suggestion = await generateSuggestion(triggerEvent, transcriptBuffer);
+        console.log("📢 Suggestion generated:", suggestion);
 
         if (suggestion) {
           setCurrentSuggestion(suggestion);
@@ -134,9 +138,12 @@ export function useWingmanSuggestion(
             triggeredBy: triggerEvent.reason,
           };
 
+          console.log("📢 Calling onSuggestion callback...");
           if (onSuggestion) {
             onSuggestion(wingmanSuggestion);
           }
+        } else {
+          console.log("📢 No suggestion was generated!");
         }
       }
 

@@ -41,14 +41,24 @@ export function useWhisperTTS(
   // Speak text
   const speak = useCallback(
     async (text: string) => {
-      if (!isEnabled || !clientRef.current) {
+      console.log("useWhisperTTS.speak called:", { text, isEnabled, hasClient: !!clientRef.current });
+
+      if (!isEnabled) {
+        console.log("TTS disabled, skipping");
+        return;
+      }
+
+      if (!clientRef.current) {
+        console.log("No TTS client, skipping");
         return;
       }
 
       try {
         setError(null);
         setIsSpeaking(true);
+        console.log("Calling speakWhisper...");
         await clientRef.current.speakWhisper(text);
+        console.log("speakWhisper completed");
       } catch (err) {
         console.error("TTS error:", err);
         setError(err instanceof Error ? err : new Error("TTS failed"));

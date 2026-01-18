@@ -19,16 +19,12 @@ export async function POST(request: NextRequest) {
       triggerReason = "low_battery",
     } = body;
 
-    if (!recentTranscript && !lastPartnerUtterance) {
-      return NextResponse.json(
-        { error: "Context is required" },
-        { status: 400 }
-      );
-    }
+    // If no context, use a generic prompt
+    const hasContext = recentTranscript || lastPartnerUtterance;
 
     const context: WingmanPromptContext = {
-      recentTranscript: recentTranscript || "",
-      lastPartnerUtterance: lastPartnerUtterance || "...",
+      recentTranscript: recentTranscript || "(No recent conversation)",
+      lastPartnerUtterance: lastPartnerUtterance || "(Conversation has gone quiet)",
       eventType,
       userRole,
       triggerReason,

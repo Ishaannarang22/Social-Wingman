@@ -70,14 +70,20 @@ export function useWingmanTranscription(): UseWingmanTranscriptionReturn {
 
   const startListening = useCallback(async () => {
     try {
+      console.log("=== Starting Wingman Transcription ===");
+
       // Get Deepgram token
+      console.log("  Fetching Deepgram token...");
       const tokenResponse = await fetch("/api/deepgram/token");
       if (!tokenResponse.ok) {
+        console.error("  Failed to get Deepgram token:", tokenResponse.status, tokenResponse.statusText);
         throw new Error("Failed to get Deepgram token");
       }
       const { token } = await tokenResponse.json();
+      console.log("  Got Deepgram token");
 
       // Get microphone access
+      console.log("  Requesting microphone access...");
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -86,6 +92,7 @@ export function useWingmanTranscription(): UseWingmanTranscriptionReturn {
         },
       });
       streamRef.current = stream;
+      console.log("  Got microphone access");
 
       // Create Deepgram connection
       const connection = new DeepgramConnection();
@@ -97,7 +104,9 @@ export function useWingmanTranscription(): UseWingmanTranscriptionReturn {
       });
 
       connection.on("transcript", (event) => {
+        console.log("📝 Deepgram transcript event:", event);
         if (event.data && event.data.isValid) {
+          console.log("📝 Valid transcript:", event.data.text);
           bufferRef.current.addSegment(event.data);
           lastSpeechTimeRef.current = Date.now();
 
@@ -136,16 +145,22 @@ export function useWingmanTranscription(): UseWingmanTranscriptionReturn {
       });
 
       // Connect to Deepgram
+      console.log("  Connecting to Deepgram WebSocket...");
       await connection.connect(token);
+      console.log("  Connected to Deepgram!");
 
       // Set up audio processor
+      console.log("  Starting audio processor...");
       const processor = createAudioProcessor(stream, (audioData) => {
         connection.sendAudio(audioData);
       });
       audioProcessorRef.current = processor;
       processor.start();
+      console.log("  Audio processor started");
 
+      console.log("  Setting isListening = true");
       setState((prev) => ({ ...prev, isListening: true }));
+      console.log("=== Wingman Transcription Started Successfully ===");
     } catch (error) {
       console.error("Error starting transcription:", error);
       setState((prev) => ({
@@ -156,6 +171,16 @@ export function useWingmanTranscription(): UseWingmanTranscriptionReturn {
   }, []);
 
   const stopListening = useCallback(() => {
+    // Only proceed if something is actually running
+    const hasAudioProcessor = audioProcessorRef.current !== null;
+    const hasStream = streamRef.current !== null;
+    const hasConnection = connectionRef.current !== null;
+
+    if (!hasAudioProcessor && !hasStream && !hasConnection) {
+      // Nothing to stop, don't trigger state update
+      return;
+    }
+
     // Stop audio processor
     if (audioProcessorRef.current) {
       audioProcessorRef.current.stop();

@@ -58,7 +58,7 @@ The agent’s purpose is to:
 - VAD + STT outputs.
 
 ### Context
-- Rolling transcript window of **30–60 seconds only**.
+- Full conversation transcript kept for the duration of the session (up to 1 hour).
 - Optional user-provided metadata:
   - Event type (e.g., hackathon, networking)
   - User role (e.g., student, founder, recruiter)

@@ -18,6 +18,7 @@ import { useWingmanTranscription } from "@/hooks/useWingmanTranscription";
 import { useSocialBattery } from "@/hooks/useSocialBattery";
 import { useWingmanSuggestion } from "@/hooks/useWingmanSuggestion";
 import { useWhisperTTS } from "@/hooks/useWhisperTTS";
+import { useVoiceActivityDetection } from "@/hooks/useVoiceActivityDetection";
 import { SessionConfig } from "@/hooks/useSession";
 import { WingmanSuggestion } from "@/types/analytics";
 
@@ -63,6 +64,11 @@ function ConversationContent({
 
   // Initialize hooks
   const transcription = useWingmanTranscription();
+  const vad = useVoiceActivityDetection({
+    silenceThreshold: 0.15,  // Below 15% = silence
+    speechThreshold: 0.16,   // Above 16% = speaking
+    silenceDelay: 300,       // 300ms of quiet before marking as silent
+  });
   const battery = useSocialBattery({
     onCritical: (value) => {
       console.log("Battery critical:", value);
@@ -78,26 +84,41 @@ function ConversationContent({
   });
   const whisperTTS = useWhisperTTS();
 
-  // Start transcription when connected
+  // Start VAD and transcription when connected
   useEffect(() => {
+    console.log("=== Connection State Effect ===");
+    console.log("  connectionState:", connectionState);
+
     if (connectionState === ConnectionState.Connected) {
+      console.log("  → Starting VAD and transcription");
+      vad.startListening();
       transcription.startListening();
     }
+
     return () => {
+      vad.stopListening();
       transcription.stopListening();
     };
   }, [connectionState]);
 
-  // Update battery based on transcription state
+  // Battery logic using VAD (voice activity detection)
+  // - Recharge when user speaks
+  // - Drain when user is silent AND bot is not speaking
+  // - Pause when bot is speaking (user is listening, not penalized)
   useEffect(() => {
-    if (transcription.isSpeaking) {
+    if (!vad.isListening) return;
+
+    if (vad.isSpeaking) {
+      console.log("Battery: User speaking → recharge");
       battery.recordSpeech();
-    } else if (transcription.isListening && agentState !== "speaking") {
-      battery.startDraining();
-    } else {
+    } else if (agentState === "speaking") {
+      console.log("Battery: Bot speaking → pause (user listening)");
       battery.stopDraining();
+    } else {
+      console.log("Battery: User silent, bot not speaking → drain");
+      battery.startDraining();
     }
-  }, [transcription.isSpeaking, transcription.isListening, agentState]);
+  }, [vad.isListening, vad.isSpeaking, agentState]);
 
   // Apply filler penalty
   useEffect(() => {
@@ -106,24 +127,98 @@ function ConversationContent({
     }
   }, [transcription.fillerRate]);
 
+  // Coherence check - evaluate speech clarity periodically
+  const lastCoherenceCheckRef = useRef<number>(0);
+  const [coherenceIssue, setCoherenceIssue] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkCoherence = async () => {
+      const now = Date.now();
+      // Only check every 5 seconds
+      if (now - lastCoherenceCheckRef.current < 5000) return;
+
+      const transcript = transcription.recentTranscript;
+      if (!transcript || transcript.length < 20) return;
+
+      lastCoherenceCheckRef.current = now;
+
+      try {
+        const response = await fetch("/api/wingman/coherence", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcript }),
+        });
+
+        if (response.ok) {
+          const { score, issue } = await response.json();
+          console.log("Coherence score:", score, issue);
+
+          if (score < 0.5) {
+            // Incoherent speech - apply penalty
+            setCoherenceIssue(issue || "Speech unclear");
+            battery.applyFillerPenalty(15); // Heavy penalty for incoherence
+          } else if (score < 0.7) {
+            // Slightly unclear
+            setCoherenceIssue(issue || "Could be clearer");
+            battery.applyFillerPenalty(8);
+          } else {
+            setCoherenceIssue(null);
+          }
+        }
+      } catch (err) {
+        console.error("Coherence check failed:", err);
+      }
+    };
+
+    // Check when transcript updates
+    if (transcription.recentTranscript) {
+      checkCoherence();
+    }
+  }, [transcription.recentTranscript]);
+
   // Report battery changes
   useEffect(() => {
     onBatteryChange?.(battery.batteryValue);
   }, [battery.batteryValue, onBatteryChange]);
 
-  // Check for wingman triggers periodically
+  // Refs to hold current values for the interval (avoids stale closure)
+  const wingmanStateRef = useRef({
+    batteryValue: battery.batteryValue,
+    silenceDuration: vad.silenceDuration,
+    isSpeaking: vad.isSpeaking,
+    agentSpeaking: agentState === "speaking",
+    isInGracePeriod: battery.isInGracePeriod,
+  });
+
+  // Keep refs updated
   useEffect(() => {
+    wingmanStateRef.current = {
+      batteryValue: battery.batteryValue,
+      silenceDuration: vad.silenceDuration,
+      isSpeaking: vad.isSpeaking,
+      agentSpeaking: agentState === "speaking",
+      isInGracePeriod: battery.isInGracePeriod,
+    };
+  }, [battery.batteryValue, vad.silenceDuration, vad.isSpeaking, agentState, battery.isInGracePeriod]);
+
+  // Check for wingman triggers periodically
+  // Wingman intervenes when: battery < 50% AND silence > 2s, OR silence > 5s
+  useEffect(() => {
+    if (connectionState !== ConnectionState.Connected) return;
+
+    console.log("Setting up wingman check interval");
+
     checkIntervalRef.current = setInterval(() => {
-      if (transcription.isListening) {
-        wingman.checkAndTrigger(
-          battery.batteryValue,
-          transcription.silenceDuration,
-          transcription.isSpeaking,
-          agentState === "speaking",
-          battery.isInGracePeriod,
-          transcription.getTranscriptBuffer()
-        );
-      }
+      const state = wingmanStateRef.current;
+      // Always check - let trigger engine handle conditions
+      wingman.checkAndTrigger(
+        state.batteryValue,
+        state.silenceDuration,
+        state.isSpeaking,
+        state.agentSpeaking,
+        state.isInGracePeriod,
+        transcription.getTranscriptBuffer()
+      );
     }, 500);
 
     return () => {
@@ -131,19 +226,21 @@ function ConversationContent({
         clearInterval(checkIntervalRef.current);
       }
     };
-  }, [
-    transcription.isListening,
-    transcription.isSpeaking,
-    transcription.silenceDuration,
-    battery.batteryValue,
-    battery.isInGracePeriod,
-    agentState,
-  ]);
+  }, [connectionState]);
 
   // Play TTS when suggestion is shown
   useEffect(() => {
-    if (showSuggestion && whisperTTS.isEnabled) {
-      whisperTTS.speak(showSuggestion.text);
+    if (showSuggestion) {
+      console.log("🔊 Suggestion received:", showSuggestion.text);
+      console.log("🔊 TTS enabled:", whisperTTS.isEnabled);
+      if (whisperTTS.isEnabled) {
+        console.log("🔊 Playing TTS...");
+        whisperTTS.speak(showSuggestion.text).then(() => {
+          console.log("🔊 TTS finished");
+        }).catch((err) => {
+          console.error("🔊 TTS error:", err);
+        });
+      }
     }
   }, [showSuggestion]);
 
@@ -216,10 +313,33 @@ function ConversationContent({
               transcription.silenceDuration > 1.5 &&
               `Silence: ${transcription.silenceDuration.toFixed(1)}s`}
           </p>
-          {/* Debug info */}
-          <p className="text-xs text-gray-600 mt-2">
-            Agent state: {agentState} | Connection: {connectionState} | Audio: {audioTrack ? "yes" : "no"}
-          </p>
+          {/* Debug panel */}
+          <div className="mt-4 p-3 bg-gray-800 rounded-lg text-xs font-mono">
+            <div className="text-yellow-400 mb-1">DEBUG:</div>
+            <div>Battery: {battery.batteryValue} | Draining: {battery.batteryState.isDraining ? "YES" : "NO"}</div>
+            <div>Grace Period: {battery.isInGracePeriod ? "YES" : "NO"}</div>
+            <div>VAD Speaking: {vad.isSpeaking ? "YES" : "NO"} | Level: {(vad.audioLevel * 100).toFixed(1)}%</div>
+            <div>VAD Listening: {vad.isListening ? "YES" : "NO"}</div>
+            <div>Silence: {vad.silenceDuration.toFixed(1)}s</div>
+            <div>Connection: {connectionState} | Agent: {agentState}</div>
+            <div className="text-purple-400">
+              Wingman: {wingman.isInCooldown ? `Cooldown ${wingman.cooldownRemaining}s` : "Ready"} |
+              Triggers at: &lt;50% + 2s silence OR 5s silence
+            </div>
+            {coherenceIssue && (
+              <div className="text-red-400 mt-1">Coherence: {coherenceIssue}</div>
+            )}
+            <div className="text-cyan-400 mt-1 truncate">
+              Transcript: {transcription.recentTranscript || "(empty)"}
+            </div>
+            {/* Audio level bar */}
+            <div className="mt-2 h-2 bg-gray-700 rounded overflow-hidden">
+              <div
+                className={`h-full transition-all ${vad.isSpeaking ? 'bg-green-500' : 'bg-red-500'}`}
+                style={{ width: `${Math.min(vad.audioLevel * 500, 100)}%` }}
+              />
+            </div>
+          </div>
         </div>
 
         {/* Stats bar */}

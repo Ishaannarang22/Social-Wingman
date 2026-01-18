@@ -55,4 +55,4 @@ export const FILLER_WORDS = [
 
 export const MIN_SPEECH_DURATION_MS = 350;
 export const MIN_CONFIDENCE_THRESHOLD = 0.6;
-export const TRANSCRIPT_WINDOW_SECONDS = 60;
+export const TRANSCRIPT_WINDOW_SECONDS = 3600; // 1 hour - keeps full conversation context

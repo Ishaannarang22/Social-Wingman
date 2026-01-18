@@ -35,7 +35,9 @@ export function useSocialBattery(
   );
 
   const drainIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const rechargeIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isDrainingRef = useRef(false);
+  const isRechargingRef = useRef(false);
   const lastUpdateRef = useRef(Date.now());
   const wasCriticalRef = useRef(false);
 
@@ -57,6 +59,17 @@ export function useSocialBattery(
   // Start draining (user is silent)
   const startDraining = useCallback(() => {
     if (isDrainingRef.current) return;
+
+    // Stop recharging when we start draining
+    if (isRechargingRef.current) {
+      isRechargingRef.current = false;
+      if (rechargeIntervalRef.current) {
+        clearInterval(rechargeIntervalRef.current);
+        rechargeIntervalRef.current = null;
+      }
+    }
+
+    console.log("Battery: Starting drain interval");
     isDrainingRef.current = true;
     lastUpdateRef.current = Date.now();
 
@@ -72,6 +85,9 @@ export function useSocialBattery(
 
   // Stop draining
   const stopDraining = useCallback(() => {
+    if (isDrainingRef.current) {
+      console.log("Battery: Stopping drain interval");
+    }
     isDrainingRef.current = false;
     if (drainIntervalRef.current) {
       clearInterval(drainIntervalRef.current);
@@ -79,12 +95,49 @@ export function useSocialBattery(
     }
   }, []);
 
-  // Record valid speech segment
+  // Stop recharging
+  const stopRecharging = useCallback(() => {
+    if (isRechargingRef.current) {
+      console.log("Battery: Stopping recharge interval");
+    }
+    isRechargingRef.current = false;
+    if (rechargeIntervalRef.current) {
+      clearInterval(rechargeIntervalRef.current);
+      rechargeIntervalRef.current = null;
+    }
+  }, []);
+
+  // Start recharging (user is speaking) - gradual recharge over time
+  const startRecharging = useCallback(() => {
+    if (isRechargingRef.current) return;
+
+    stopDraining(); // Stop draining when we start recharging
+    console.log("Battery: Starting recharge interval");
+    isRechargingRef.current = true;
+    lastUpdateRef.current = Date.now();
+
+    // Reset silence tracking in the battery
+    batteryRef.current.recharge(); // This resets silence tracking
+
+    rechargeIntervalRef.current = setInterval(() => {
+      const now = Date.now();
+      const deltaSeconds = (now - lastUpdateRef.current) / 1000;
+      lastUpdateRef.current = now;
+
+      // Recharge at ~8 points per second while speaking
+      const rechargeAmount = 8 * deltaSeconds;
+      const currentValue = batteryRef.current.getValue();
+      if (currentValue < 100) {
+        batteryRef.current.setRawValue(Math.min(100, currentValue + rechargeAmount));
+      }
+      updateBatteryState();
+    }, updateIntervalMs);
+  }, [stopDraining, updateIntervalMs, updateBatteryState]);
+
+  // Record valid speech segment (now starts gradual recharge)
   const recordSpeech = useCallback(() => {
-    stopDraining();
-    batteryRef.current.recharge();
-    updateBatteryState();
-  }, [stopDraining, updateBatteryState]);
+    startRecharging();
+  }, [startRecharging]);
 
   // Apply filler penalty
   const applyFillerPenalty = useCallback(
@@ -99,10 +152,11 @@ export function useSocialBattery(
   // Reset battery
   const reset = useCallback(() => {
     stopDraining();
+    stopRecharging();
     batteryRef.current.reset();
     wasCriticalRef.current = false;
     updateBatteryState();
-  }, [stopDraining, updateBatteryState]);
+  }, [stopDraining, stopRecharging, updateBatteryState]);
 
   // Update config
   const updateConfig = useCallback(
@@ -118,6 +172,9 @@ export function useSocialBattery(
     return () => {
       if (drainIntervalRef.current) {
         clearInterval(drainIntervalRef.current);
+      }
+      if (rechargeIntervalRef.current) {
+        clearInterval(rechargeIntervalRef.current);
       }
     };
   }, []);
